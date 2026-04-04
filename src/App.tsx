@@ -15,7 +15,10 @@ import {
   Maximize2,
   FileText,
   X,
-  AlertCircle
+  AlertCircle,
+  Settings,
+  Key,
+  Info
 } from 'lucide-react';
 import { generateVocabularySlides, VocabularySlide } from './lib/gemini';
 import { cn } from './lib/utils';
@@ -79,6 +82,13 @@ export default function App() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [viewMode, setViewMode] = useState<'edit' | 'present'>('edit');
   const [isParsing, setIsParsing] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+
+  const saveApiKey = (key: string) => {
+    setUserApiKey(key);
+    localStorage.setItem('gemini_api_key', key);
+  };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -120,14 +130,22 @@ export default function App() {
 
   const handleGenerate = async () => {
     if (!input.trim()) return;
+    
+    // If no key is provided and no default key exists, show settings
+    if (!userApiKey && !process.env.GEMINI_API_KEY) {
+      setShowSettings(true);
+      return;
+    }
+
     setLoading(true);
     try {
-      const result = await generateVocabularySlides(input);
+      const result = await generateVocabularySlides(input, userApiKey);
       setSlides(result);
       setCurrentSlide(0);
       setViewMode('present');
     } catch (error) {
       console.error(error);
+      alert("Error generating slides. Please check your API Key.");
     } finally {
       setLoading(false);
     }
@@ -154,6 +172,16 @@ export default function App() {
       <OrganicShape color="#009E60" className="top-[40%] right-[-10%] w-[300px] h-[300px]" delay={0.6} />
       
       <div className="relative z-10 max-w-6xl mx-auto px-6 py-12">
+        {/* Settings Button */}
+        <div className="absolute top-6 right-6 z-50">
+          <button
+            onClick={() => setShowSettings(true)}
+            className="p-3 rounded-2xl bg-white/80 backdrop-blur-sm border border-gray-200 shadow-sm hover:shadow-md transition-all text-gray-600 hover:text-[#002FA7]"
+          >
+            <Settings size={24} />
+          </button>
+        </div>
+
         {/* Header */}
         <header className="mb-12 text-center">
           <motion.div
@@ -410,6 +438,73 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {showSettings && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSettings(false)}
+              className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-[32px] shadow-2xl p-8 overflow-hidden"
+            >
+              <OrganicShape color="#FFD700" className="top-[-20%] right-[-20%] w-64 h-64 opacity-10" />
+              
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-[#002FA7]/10 flex items-center justify-center text-[#002FA7]">
+                      <Key size={20} />
+                    </div>
+                    <h3 className="text-xl font-bold">API Settings</h3>
+                  </div>
+                  <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600">
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-gray-500 uppercase tracking-wider">Gemini API Key</label>
+                    <input
+                      type="password"
+                      value={userApiKey}
+                      onChange={(e) => saveApiKey(e.target.value)}
+                      placeholder="Paste your key here..."
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 border-2 border-transparent focus:border-[#002FA7] outline-none transition-all"
+                    />
+                    <p className="text-xs text-gray-400 leading-relaxed">
+                      Your key is stored locally in your browser and never sent to our servers. 
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-[#002FA7]/5 border border-[#002FA7]/10 flex gap-3">
+                    <Info className="text-[#002FA7] flex-shrink-0" size={18} />
+                    <div className="text-sm text-gray-600 leading-snug">
+                      Don't have a key? Get one for free at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-[#002FA7] font-bold underline">Google AI Studio</a>.
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setShowSettings(false)}
+                    className="w-full py-4 rounded-2xl bg-[#002FA7] text-white font-bold shadow-lg shadow-[#002FA7]/20 hover:bg-[#002FA7]/90 transition-all"
+                  >
+                    Save & Close
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Footer */}
       <footer className="mt-20 pb-10 text-center text-gray-400 text-sm">

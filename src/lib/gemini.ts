@@ -16,7 +16,10 @@ export interface VocabularySlide {
   }[];
 }
 
-export async function generateVocabularySlides(text: string): Promise<VocabularySlide[]> {
+export async function generateVocabularySlides(text: string, userApiKey?: string): Promise<VocabularySlide[]> {
+  const apiKey = userApiKey || process.env.GEMINI_API_KEY || "";
+  const ai = new GoogleGenAI({ apiKey });
+  
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Extract ALL significant vocabulary words and academic phrases from the following text for ESL learners. Do not skip any important terms. For each word/phrase, provide a detailed linguistic breakdown and teaching materials. 
