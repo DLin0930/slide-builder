@@ -91,13 +91,7 @@ export default function App() {
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState<string | null>(null);
 
-  // Force settings modal if no API key is found on first load
-  useEffect(() => {
-    const hasKey = localStorage.getItem('gemini_api_key');
-    if (!hasKey && !process.env.GEMINI_API_KEY) {
-      setShowSettings(true);
-    }
-  }, []);
+  const isApiActive = !!userApiKey || !!process.env.GEMINI_API_KEY;
 
   const saveApiKey = (key: string) => {
     setUserApiKey(key);
@@ -311,9 +305,17 @@ export default function App() {
         <div className="absolute top-6 right-6 z-50">
           <button
             onClick={() => setShowSettings(true)}
-            className="p-3 rounded-2xl bg-white/80 backdrop-blur-sm border border-gray-200 shadow-sm hover:shadow-md transition-all text-gray-600 hover:text-[#002FA7]"
+            className={cn(
+              "p-3 rounded-2xl backdrop-blur-sm border shadow-sm transition-all relative group",
+              !isApiActive 
+                ? "bg-[#E31E24]/10 border-[#E31E24]/20 text-[#E31E24] animate-pulse" 
+                : "bg-white/80 border-gray-200 text-gray-600 hover:text-[#002FA7]"
+            )}
           >
-            <Settings size={24} />
+            <Settings size={24} className="group-hover:rotate-90 transition-transform duration-500" />
+            {!isApiActive && (
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#E31E24] rounded-full border-2 border-white" />
+            )}
           </button>
         </div>
 
@@ -351,6 +353,53 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="bg-white rounded-3xl shadow-2xl shadow-gray-200/50 p-8 border border-gray-100 relative overflow-hidden"
           >
+            {/* API Status Indicator */}
+            {!isApiActive ? (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="mb-8 p-5 rounded-2xl bg-[#E31E24]/5 border border-[#E31E24]/20 flex items-start gap-4 text-[#E31E24]"
+              >
+                <div className="p-2 rounded-xl bg-[#E31E24]/10">
+                  <Key size={20} />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold mb-1">Getting Started: API Key Required</p>
+                  <p className="text-sm opacity-80 leading-relaxed mb-3">
+                    To start architecting your ESL slides, you'll need a Gemini API key. It's free and takes 30 seconds to get.
+                  </p>
+                  <button 
+                    onClick={() => setShowSettings(true)}
+                    className="text-xs font-bold bg-[#E31E24] text-white px-3 py-1.5 rounded-lg hover:bg-[#E31E24]/90 transition-colors flex items-center gap-2"
+                  >
+                    <Settings size={14} />
+                    Click here to enter your API Key
+                  </button>
+                </div>
+              </motion.div>
+            ) : (
+              <div className="mb-8 p-4 rounded-2xl bg-green-50 border border-green-100 flex items-center justify-between">
+                <div className="flex items-center gap-3 text-green-700">
+                  <div className="relative">
+                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                    <div className="absolute inset-0 w-3 h-3 rounded-full bg-green-500 animate-ping" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">System Status</span>
+                    <span className="text-sm font-bold">Gemini API Active</span>
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-md">READY TO ARCHITECT</span>
+                  {userApiKey && (
+                    <span className="text-[9px] text-gray-400 font-mono">
+                      Key: {userApiKey.substring(0, 4)}...{userApiKey.substring(userApiKey.length - 4)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col gap-6">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
@@ -643,8 +692,13 @@ export default function App() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-bold text-gray-500 uppercase tracking-wider">Gemini API Key</label>
-                      {process.env.GEMINI_API_KEY && !userApiKey && (
-                        <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">System Key Active</span>
+                      {isApiActive ? (
+                        <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                          <div className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />
+                          API Active
+                        </span>
+                      ) : (
+                        <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">Missing Key</span>
                       )}
                     </div>
                     <input
