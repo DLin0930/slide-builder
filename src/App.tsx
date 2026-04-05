@@ -157,45 +157,61 @@ export default function App() {
     slides.forEach((slide, index) => {
       const pSlide = pres.addSlide();
       
-      // Background color (Matisse inspired)
+      // Matisse-inspired background colors
       const bgColors = ['FDFBF7', 'FFF9E6', 'E6F0FF', 'FCE8E8'];
-      pSlide.background = { fill: bgColors[index % bgColors.length] };
+      const accentColors = ['002FA7', 'E31E24', '009E60', 'FFD700'];
+      const currentBg = bgColors[index % bgColors.length];
+      const currentAccent = accentColors[index % accentColors.length];
+      
+      pSlide.background = { fill: currentBg };
+
+      // Add some organic-looking shapes to mimic Matisse style
+      pSlide.addShape(pres.ShapeType.ellipse, {
+        x: -1, y: -1, w: 4, h: 4,
+        fill: { color: currentAccent, transparency: 90 }
+      });
+      pSlide.addShape(pres.ShapeType.cloud, {
+        x: 8, y: 4, w: 3, h: 3,
+        fill: { color: accentColors[(index + 1) % 4], transparency: 85 }
+      });
 
       // Word & Syllables
       const wordText = slide.syllables.map(s => s.text).join(' · ');
       pSlide.addText(wordText, {
-        x: 0.5, y: 0.5, w: '90%', h: 1.5,
-        fontSize: 44, bold: true, color: '002FA7',
-        align: 'left', fontFace: 'Arial'
+        x: 0.5, y: 0.4, w: '90%', h: 1.2,
+        fontSize: 48, bold: true, color: '002FA7',
+        align: 'left', fontFace: 'Arial Black'
       });
 
       // Definition
       pSlide.addText(slide.definition, {
-        x: 0.5, y: 1.8, w: '90%', h: 0.8,
-        fontSize: 24, italic: true, color: '666666',
-        align: 'left'
+        x: 0.5, y: 1.6, w: '90%', h: 0.6,
+        fontSize: 22, italic: true, color: '555555',
+        align: 'left', fontFace: 'Arial'
       });
 
       // Grid Section
+      const gridY = 2.5;
       // Derivatives
-      pSlide.addText('DERIVATIVES', { x: 0.5, y: 2.8, w: 2.5, h: 0.3, fontSize: 10, bold: true, color: 'E31E24' });
-      pSlide.addText(slide.derivatives.join(', '), { x: 0.5, y: 3.1, w: 2.5, h: 0.5, fontSize: 14, color: '333333' });
+      pSlide.addText('DERIVATIVES', { x: 0.5, y: gridY, w: 2.8, h: 0.3, fontSize: 10, bold: true, color: 'E31E24', charSpacing: 2 });
+      pSlide.addText(slide.derivatives.join(', '), { x: 0.5, y: gridY + 0.3, w: 2.8, h: 0.6, fontSize: 14, color: '333333', fontFace: 'Arial' });
 
       // Collocations
-      pSlide.addText('COLLOCATIONS', { x: 3.5, y: 2.8, w: 2.5, h: 0.3, fontSize: 10, bold: true, color: '002FA7' });
-      pSlide.addText(slide.collocations.join(', '), { x: 3.5, y: 3.1, w: 2.5, h: 0.5, fontSize: 14, color: '333333' });
+      pSlide.addText('COLLOCATIONS', { x: 3.5, y: gridY, w: 2.8, h: 0.3, fontSize: 10, bold: true, color: '002FA7', charSpacing: 2 });
+      pSlide.addText(slide.collocations.join(', '), { x: 3.5, y: gridY + 0.3, w: 2.8, h: 0.6, fontSize: 14, color: '333333', fontFace: 'Arial' });
 
       // Synonyms/Antonyms
-      pSlide.addText('SYNONYMS / ANTONYMS', { x: 6.5, y: 2.8, w: 3, h: 0.3, fontSize: 10, bold: true, color: '009E60' });
-      const synAntText = `${slide.synonyms.slice(0, 2).join(', ')} | ${slide.antonyms.slice(0, 2).join(', ')}`;
-      pSlide.addText(synAntText, { x: 6.5, y: 3.1, w: 3, h: 0.5, fontSize: 14, color: '333333' });
+      pSlide.addText('SYNONYMS / ANTONYMS', { x: 6.5, y: gridY, w: 3, h: 0.3, fontSize: 10, bold: true, color: '009E60', charSpacing: 2 });
+      const synAntText = `${slide.synonyms.slice(0, 2).join(', ')} ≠ ${slide.antonyms.slice(0, 2).join(', ')}`;
+      pSlide.addText(synAntText, { x: 6.5, y: gridY + 0.3, w: 3, h: 0.6, fontSize: 14, color: '333333', fontFace: 'Arial' });
 
       // Example Sentences
       slide.exampleSentences.forEach((s, i) => {
-        pSlide.addText(`• ${s.text.replace(/\*/g, '')}`, {
-          x: 0.5, y: 4.2 + (i * 0.8), w: '90%', h: 0.6,
-          fontSize: 20, color: '333333',
-          align: 'left'
+        const cleanText = s.text.replace(/\*/g, '');
+        pSlide.addText(`• ${cleanText}`, {
+          x: 0.5, y: 4.0 + (i * 0.7), w: '90%', h: 0.6,
+          fontSize: 20, color: '1A1A1A',
+          align: 'left', fontFace: 'Arial'
         });
       });
     });
@@ -208,43 +224,50 @@ export default function App() {
     if (slides.length === 0) return;
     setIsExporting('pdf');
     
-    const pdf = new jsPDF('l', 'mm', 'a4');
-    const width = pdf.internal.pageSize.getWidth();
-    const height = pdf.internal.pageSize.getHeight();
+    // Create PDF in landscape
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+      unit: 'px',
+      format: [1280, 720]
+    });
 
-    // We need to render each slide one by one
-    // To do this efficiently, we'll use a temporary hidden container
-    const tempDiv = document.createElement('div');
-    tempDiv.style.position = 'fixed';
-    tempDiv.style.top = '-9999px';
-    tempDiv.style.left = '-9999px';
-    tempDiv.style.width = '1280px'; // 16:9 aspect ratio
-    tempDiv.style.height = '720px';
-    document.body.appendChild(tempDiv);
+    const originalSlide = currentSlide;
 
-    for (let i = 0; i < slides.length; i++) {
-      // Create a temporary React root to render the slide
-      // For simplicity, we can just use the existing slide DOM if we can isolate it
-      // But a better way is to move the current slide index and capture it
-      setCurrentSlide(i);
-      // Wait for React to re-render
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const slideElement = document.querySelector('.aspect-\\[16\\/9\\]') as HTMLElement;
-      if (slideElement) {
-        const canvas = await html2canvas(slideElement, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: null
-        });
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        if (i > 0) pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, 0, width, height);
+    try {
+      for (let i = 0; i < slides.length; i++) {
+        // Change slide and wait for render
+        setCurrentSlide(i);
+        // Give it more time to render animations and content
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const slideElement = document.getElementById('active-slide-container');
+        if (slideElement) {
+          const canvas = await html2canvas(slideElement, {
+            scale: 2, // Higher quality
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: null,
+            logging: false,
+            width: slideElement.offsetWidth,
+            height: slideElement.offsetHeight
+          });
+          
+          const imgData = canvas.toDataURL('image/png');
+          if (i > 0) pdf.addPage([1280, 720], 'landscape');
+          
+          // Add image to fill the page
+          pdf.addImage(imgData, 'PNG', 0, 0, 1280, 720);
+        }
       }
-    }
 
-    pdf.save('ESL_Vocabulary_Deck.pdf');
-    setIsExporting(null);
+      pdf.save('ESL_Vocabulary_Deck.pdf');
+    } catch (error) {
+      console.error("PDF Export failed", error);
+      alert("Failed to export PDF. Please try again.");
+    } finally {
+      setCurrentSlide(originalSlide);
+      setIsExporting(null);
+    }
   };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -487,6 +510,7 @@ export default function App() {
                   "min-h-[500px] md:aspect-[16/9] w-full rounded-[30px] md:rounded-[40px] shadow-2xl p-6 sm:p-10 md:p-16 lg:p-20 flex flex-col justify-between relative overflow-hidden border-4 md:border-8 border-white print:shadow-none print:border-none print:rounded-none print:w-[297mm] print:h-[210mm] print:m-0",
                   BG_COLORS[currentSlide % BG_COLORS.length]
                 )}
+                id="active-slide-container"
               >
                 {/* Matisse Cutout Decorations */}
                 <div className="absolute top-5 right-5 md:top-10 md:right-10 opacity-10 md:opacity-20 rotate-12 print:opacity-10">
