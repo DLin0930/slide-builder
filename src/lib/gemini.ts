@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
@@ -18,9 +18,9 @@ export interface VocabularySlide {
 
 export async function generateVocabularySlides(text: string, userApiKey?: string): Promise<VocabularySlide[]> {
   const apiKey = userApiKey || process.env.GEMINI_API_KEY || "";
-  const ai = new GoogleGenAI({ apiKey });
+  const genAi = new GoogleGenAI({ apiKey });
   
-  const response = await ai.models.generateContent({
+  const response = await genAi.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Extract ALL significant vocabulary words and academic phrases from the following text for ESL learners. Do not skip any important terms. For each word/phrase, provide a detailed linguistic breakdown and teaching materials. 
     
@@ -83,4 +83,24 @@ export async function generateVocabularySlides(text: string, userApiKey?: string
     console.error("Failed to parse Gemini response", e);
     return [];
   }
+}
+
+export async function generateSpeech(text: string, userApiKey?: string): Promise<string | undefined> {
+  const apiKey = userApiKey || process.env.GEMINI_API_KEY || "";
+  const genAi = new GoogleGenAI({ apiKey });
+
+  const response = await genAi.models.generateContent({
+    model: "gemini-2.5-flash-preview-tts",
+    contents: [{ parts: [{ text: `Say clearly and naturally for an ESL student: ${text}` }] }],
+    config: {
+      responseModalities: [Modality.AUDIO],
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: { voiceName: 'Kore' }, // Clear, natural voice
+        },
+      },
+    },
+  });
+
+  return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
 }

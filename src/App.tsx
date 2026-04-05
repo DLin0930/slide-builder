@@ -2,6 +2,9 @@ import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDropzone } from 'react-dropzone';
 import * as pdfjsLib from 'pdfjs-dist';
+import pptxgen from "pptxgenjs";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { 
   Upload, 
   ChevronLeft, 
@@ -18,9 +21,13 @@ import {
   AlertCircle,
   Settings,
   Key,
-  Info
+  Info,
+  Volume2,
+  Loader2,
+  Presentation,
+  FileDown
 } from 'lucide-react';
-import { generateVocabularySlides, VocabularySlide } from './lib/gemini';
+import { generateVocabularySlides, VocabularySlide, generateSpeech } from './lib/gemini';
 import { cn } from './lib/utils';
 
 // Initialize PDF.js worker
@@ -84,10 +91,160 @@ export default function App() {
   const [isParsing, setIsParsing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
+  const [playingAudio, setPlayingAudio] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState<string | null>(null);
 
   const saveApiKey = (key: string) => {
     setUserApiKey(key);
     localStorage.setItem('gemini_api_key', key);
+  };
+
+  const playAudio = async (text: string, id: string) => {
+    if (playingAudio) return;
+    
+    // If no key is provided and no default key exists, show settings
+    if (!userApiKey && !process.env.GEMINI_API_KEY) {
+      setShowSettings(true);
+      return;
+    }
+
+    setPlayingAudio(id);
+    try {
+      const base64Audio = await generateSpeech(text, userApiKey);
+      if (base64Audio) {
+        const binaryString = atob(base64Audio);
+        const len = binaryString.length;
+        const bytes = new Int16Array(len / 2);
+        for (let i = 0; i < len; i += 2) {
+          // Assuming 16-bit Little Endian PCM
+          bytes[i / 2] = binaryString.charCodeAt(i) | (binaryString.charCodeAt(i + 1) << 8);
+        }
+
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        const audioBuffer = audioContext.createBuffer(1, bytes.length, 24000);
+        const channelData = audioBuffer.getChannelData(0);
+        
+        for (let i = 0; i < bytes.length; i++) {
+          // Convert Int16 to Float32
+          channelData[i] = bytes[i] / 32768.0;
+        }
+
+        const source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioContext.destination);
+        source.onended = () => {
+          setPlayingAudio(null);
+          audioContext.close();
+        };
+        source.start();
+      } else {
+        setPlayingAudio(null);
+      }
+    } catch (error) {
+      console.error("Audio generation failed", error);
+      setPlayingAudio(null);
+    }
+  };
+
+  const exportToPPTX = async () => {
+    if (slides.length === 0) return;
+    setIsExporting('pptx');
+    
+    const pres = new pptxgen();
+    pres.layout = 'LAYOUT_16x9';
+    pres.title = 'ESL Vocabulary Slide Deck';
+
+    slides.forEach((slide, index) => {
+      const pSlide = pres.addSlide();
+      
+      // Background color (Matisse inspired)
+      const bgColors = ['FDFBF7', 'FFF9E6', 'E6F0FF', 'FCE8E8'];
+      pSlide.background = { fill: bgColors[index % bgColors.length] };
+
+      // Word & Syllables
+      const wordText = slide.syllables.map(s => s.text).join(' · ');
+      pSlide.addText(wordText, {
+        x: 0.5, y: 0.5, w: '90%', h: 1.5,
+        fontSize: 44, bold: true, color: '002FA7',
+        align: 'left', fontFace: 'Arial'
+      });
+
+      // Definition
+      pSlide.addText(slide.definition, {
+        x: 0.5, y: 1.8, w: '90%', h: 0.8,
+        fontSize: 24, italic: true, color: '666666',
+        align: 'left'
+      });
+
+      // Grid Section
+      // Derivatives
+      pSlide.addText('DERIVATIVES', { x: 0.5, y: 2.8, w: 2.5, h: 0.3, fontSize: 10, bold: true, color: 'E31E24' });
+      pSlide.addText(slide.derivatives.join(', '), { x: 0.5, y: 3.1, w: 2.5, h: 0.5, fontSize: 14, color: '333333' });
+
+      // Collocations
+      pSlide.addText('COLLOCATIONS', { x: 3.5, y: 2.8, w: 2.5, h: 0.3, fontSize: 10, bold: true, color: '002FA7' });
+      pSlide.addText(slide.collocations.join(', '), { x: 3.5, y: 3.1, w: 2.5, h: 0.5, fontSize: 14, color: '333333' });
+
+      // Synonyms/Antonyms
+      pSlide.addText('SYNONYMS / ANTONYMS', { x: 6.5, y: 2.8, w: 3, h: 0.3, fontSize: 10, bold: true, color: '009E60' });
+      const synAntText = `${slide.synonyms.slice(0, 2).join(', ')} | ${slide.antonyms.slice(0, 2).join(', ')}`;
+      pSlide.addText(synAntText, { x: 6.5, y: 3.1, w: 3, h: 0.5, fontSize: 14, color: '333333' });
+
+      // Example Sentences
+      slide.exampleSentences.forEach((s, i) => {
+        pSlide.addText(`• ${s.text.replace(/\*/g, '')}`, {
+          x: 0.5, y: 4.2 + (i * 0.8), w: '90%', h: 0.6,
+          fontSize: 20, color: '333333',
+          align: 'left'
+        });
+      });
+    });
+
+    await pres.writeFile({ fileName: `ESL_Vocabulary_Deck.pptx` });
+    setIsExporting(null);
+  };
+
+  const exportToPDF = async () => {
+    if (slides.length === 0) return;
+    setIsExporting('pdf');
+    
+    const pdf = new jsPDF('l', 'mm', 'a4');
+    const width = pdf.internal.pageSize.getWidth();
+    const height = pdf.internal.pageSize.getHeight();
+
+    // We need to render each slide one by one
+    // To do this efficiently, we'll use a temporary hidden container
+    const tempDiv = document.createElement('div');
+    tempDiv.style.position = 'fixed';
+    tempDiv.style.top = '-9999px';
+    tempDiv.style.left = '-9999px';
+    tempDiv.style.width = '1280px'; // 16:9 aspect ratio
+    tempDiv.style.height = '720px';
+    document.body.appendChild(tempDiv);
+
+    for (let i = 0; i < slides.length; i++) {
+      // Create a temporary React root to render the slide
+      // For simplicity, we can just use the existing slide DOM if we can isolate it
+      // But a better way is to move the current slide index and capture it
+      setCurrentSlide(i);
+      // Wait for React to re-render
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      const slideElement = document.querySelector('.aspect-\\[16\\/9\\]') as HTMLElement;
+      if (slideElement) {
+        const canvas = await html2canvas(slideElement, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: null
+        });
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, 0, width, height);
+      }
+    }
+
+    pdf.save('ESL_Vocabulary_Deck.pdf');
+    setIsExporting(null);
   };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -342,19 +499,31 @@ export default function App() {
                 <div className="relative z-10">
                   {/* Word & Syllables */}
                   <div className="mb-6 md:mb-8">
-                    <div className="flex flex-wrap items-baseline gap-x-0.5 md:gap-x-1 mb-1 md:mb-2">
-                      {slides[currentSlide].syllables.map((s, i) => (
-                        <span 
-                          key={i} 
-                          className={cn(
-                            "text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter break-words",
-                            SYLLABLE_COLORS[s.type]
-                          )}
-                        >
-                          {s.text}
-                          {i < slides[currentSlide].syllables.length - 1 && <span className="text-gray-300 mx-0.5 md:mx-1">·</span>}
-                        </span>
-                      ))}
+                    <div className="flex flex-wrap items-center gap-x-4 mb-1 md:mb-2">
+                      <div className="flex flex-wrap items-baseline gap-x-0.5 md:gap-x-1">
+                        {slides[currentSlide].syllables.map((s, i) => (
+                          <span 
+                            key={i} 
+                            className={cn(
+                              "text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter break-words",
+                              SYLLABLE_COLORS[s.type]
+                            )}
+                          >
+                            {s.text}
+                            {i < slides[currentSlide].syllables.length - 1 && <span className="text-gray-300 mx-0.5 md:mx-1">·</span>}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => playAudio(slides[currentSlide].word, 'word')}
+                        disabled={!!playingAudio}
+                        className={cn(
+                          "p-3 rounded-full transition-all",
+                          playingAudio === 'word' ? "bg-[#002FA7] text-white animate-pulse" : "bg-white text-[#002FA7] hover:bg-[#002FA7] hover:text-white border-2 border-[#002FA7]"
+                        )}
+                      >
+                        {playingAudio === 'word' ? <Loader2 className="animate-spin" size={24} /> : <Volume2 size={24} />}
+                      </button>
                     </div>
                     <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl text-gray-600 font-medium italic leading-tight">
                       {slides[currentSlide].definition}
@@ -401,14 +570,26 @@ export default function App() {
                 {/* Example Sentences */}
                 <div className="relative z-10 space-y-4 md:space-y-6">
                   {slides[currentSlide].exampleSentences.map((s, i) => (
-                    <div key={i} className="flex gap-3 md:gap-4 items-start">
+                    <div key={i} className="flex gap-3 md:gap-4 items-start group">
                       <div className={cn(
                         "mt-1.5 md:mt-2 w-2 h-2 md:w-3 md:h-3 rounded-full flex-shrink-0",
                         i === 0 ? "bg-[#E31E24]" : "bg-[#FFD700]"
                       )} />
-                      <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl leading-snug text-gray-800">
-                        {formatSentence(s.text)}
-                      </p>
+                      <div className="flex-1">
+                        <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl leading-snug text-gray-800">
+                          {formatSentence(s.text)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => playAudio(s.text.replace(/\*/g, ''), `sentence-${i}`)}
+                        disabled={!!playingAudio}
+                        className={cn(
+                          "p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 focus:opacity-100",
+                          playingAudio === `sentence-${i}` ? "bg-[#002FA7] text-white opacity-100" : "bg-white text-[#002FA7] border border-[#002FA7] hover:bg-[#002FA7] hover:text-white"
+                        )}
+                      >
+                        {playingAudio === `sentence-${i}` ? <Loader2 className="animate-spin" size={18} /> : <Volume2 size={18} />}
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -418,11 +599,20 @@ export default function App() {
             {/* Controls Bar */}
             <div className="flex flex-wrap gap-4 justify-center print:hidden">
               <button 
-                onClick={() => window.print()}
-                className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-white border border-gray-200 hover:bg-gray-50 font-bold transition-all"
+                onClick={exportToPDF}
+                disabled={!!isExporting}
+                className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-white border border-gray-200 hover:bg-gray-50 font-bold transition-all disabled:opacity-50"
               >
-                <Download size={18} />
-                Print Slides
+                {isExporting === 'pdf' ? <RefreshCw className="animate-spin" size={18} /> : <FileDown size={18} />}
+                Export All PDF
+              </button>
+              <button 
+                onClick={exportToPPTX}
+                disabled={!!isExporting}
+                className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-white border border-gray-200 hover:bg-gray-50 font-bold transition-all disabled:opacity-50"
+              >
+                {isExporting === 'pptx' ? <RefreshCw className="animate-spin" size={18} /> : <Presentation size={18} />}
+                Google Slides (PPTX)
               </button>
               <button 
                 onClick={() => {
@@ -434,6 +624,13 @@ export default function App() {
                 <Maximize2 size={18} />
                 Full Screen
               </button>
+            </div>
+            
+            <div className="text-center text-gray-400 text-sm mt-4">
+              <p className="flex items-center justify-center gap-1">
+                <Info size={14} />
+                Note: Audio is only available in the web presentation mode.
+              </p>
             </div>
           </div>
         )}
