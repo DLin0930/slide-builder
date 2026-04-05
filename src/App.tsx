@@ -3,8 +3,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useDropzone } from 'react-dropzone';
 import * as pdfjsLib from 'pdfjs-dist';
 import pptxgen from "pptxgenjs";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 import { 
   Upload, 
   ChevronLeft, 
@@ -24,8 +22,7 @@ import {
   Info,
   Volume2,
   Loader2,
-  Presentation,
-  FileDown
+  Presentation
 } from 'lucide-react';
 import { generateVocabularySlides, VocabularySlide, generateSpeech } from './lib/gemini';
 import { cn } from './lib/utils';
@@ -226,65 +223,6 @@ export default function App() {
 
     await pres.writeFile({ fileName: `ESL_Vocabulary_Deck.pptx` });
     setIsExporting(null);
-  };
-
-  const exportToPDF = async () => {
-    if (slides.length === 0) return;
-    setIsExporting('pdf');
-    
-    // Create PDF in landscape
-    // Using a standard A4 landscape format in pixels at 96 DPI
-    const pdf = new jsPDF({
-      orientation: 'landscape',
-      unit: 'px',
-      format: [1280, 720]
-    });
-
-    const originalSlide = currentSlide;
-
-    try {
-      for (let i = 0; i < slides.length; i++) {
-        // Change slide and wait for render
-        setCurrentSlide(i);
-        // Give it more time to render animations and content fully
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        const slideElement = document.getElementById('active-slide-container');
-        if (slideElement) {
-          const canvas = await html2canvas(slideElement, {
-            scale: 1.5, // Good balance between quality and memory
-            useCORS: true,
-            backgroundColor: null,
-            logging: false,
-            width: slideElement.offsetWidth,
-            height: slideElement.offsetHeight,
-            onclone: (clonedDoc) => {
-              // Ensure animations are at their end state in the clone
-              const clonedElement = clonedDoc.getElementById('active-slide-container');
-              if (clonedElement) {
-                clonedElement.style.transform = 'none';
-                clonedElement.style.transition = 'none';
-              }
-            }
-          });
-          
-          // Use JPEG for better compression in PDF
-          const imgData = canvas.toDataURL('image/jpeg', 0.85);
-          if (i > 0) pdf.addPage([1280, 720], 'landscape');
-          
-          // Add image to fill the page
-          pdf.addImage(imgData, 'JPEG', 0, 0, 1280, 720);
-        }
-      }
-
-      pdf.save('ESL_Vocabulary_Deck.pdf');
-    } catch (error) {
-      console.error("PDF Export failed", error);
-      alert("PDF export failed. This can happen with too many slides. Try generating fewer slides or checking your browser memory.");
-    } finally {
-      setCurrentSlide(originalSlide);
-      setIsExporting(null);
-    }
   };
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -639,14 +577,6 @@ export default function App() {
 
             {/* Controls Bar */}
             <div className="flex flex-wrap gap-4 justify-center print:hidden">
-              <button 
-                onClick={exportToPDF}
-                disabled={!!isExporting}
-                className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-white border border-gray-200 hover:bg-gray-50 font-bold transition-all disabled:opacity-50"
-              >
-                {isExporting === 'pdf' ? <RefreshCw className="animate-spin" size={18} /> : <FileDown size={18} />}
-                Export All PDF
-              </button>
               <button 
                 onClick={exportToPPTX}
                 disabled={!!isExporting}
