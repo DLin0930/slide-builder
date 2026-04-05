@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDropzone } from 'react-dropzone';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -93,6 +93,14 @@ export default function App() {
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState<string | null>(null);
+
+  // Force settings modal if no API key is found on first load
+  useEffect(() => {
+    const hasKey = localStorage.getItem('gemini_api_key');
+    if (!hasKey && !process.env.GEMINI_API_KEY) {
+      setShowSettings(true);
+    }
+  }, []);
 
   const saveApiKey = (key: string) => {
     setUserApiKey(key);
@@ -225,6 +233,7 @@ export default function App() {
     setIsExporting('pdf');
     
     // Create PDF in landscape
+    // Using a standard A4 landscape format in pixels at 96 DPI
     const pdf = new jsPDF({
       orientation: 'landscape',
       unit: 'px',
@@ -237,33 +246,41 @@ export default function App() {
       for (let i = 0; i < slides.length; i++) {
         // Change slide and wait for render
         setCurrentSlide(i);
-        // Give it more time to render animations and content
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Give it more time to render animations and content fully
+        await new Promise(resolve => setTimeout(resolve, 800));
         
         const slideElement = document.getElementById('active-slide-container');
         if (slideElement) {
           const canvas = await html2canvas(slideElement, {
-            scale: 2, // Higher quality
+            scale: 1.5, // Good balance between quality and memory
             useCORS: true,
-            allowTaint: true,
             backgroundColor: null,
             logging: false,
             width: slideElement.offsetWidth,
-            height: slideElement.offsetHeight
+            height: slideElement.offsetHeight,
+            onclone: (clonedDoc) => {
+              // Ensure animations are at their end state in the clone
+              const clonedElement = clonedDoc.getElementById('active-slide-container');
+              if (clonedElement) {
+                clonedElement.style.transform = 'none';
+                clonedElement.style.transition = 'none';
+              }
+            }
           });
           
-          const imgData = canvas.toDataURL('image/png');
+          // Use JPEG for better compression in PDF
+          const imgData = canvas.toDataURL('image/jpeg', 0.85);
           if (i > 0) pdf.addPage([1280, 720], 'landscape');
           
           // Add image to fill the page
-          pdf.addImage(imgData, 'PNG', 0, 0, 1280, 720);
+          pdf.addImage(imgData, 'JPEG', 0, 0, 1280, 720);
         }
       }
 
       pdf.save('ESL_Vocabulary_Deck.pdf');
     } catch (error) {
       console.error("PDF Export failed", error);
-      alert("Failed to export PDF. Please try again.");
+      alert("PDF export failed. This can happen with too many slides. Try generating fewer slides or checking your browser memory.");
     } finally {
       setCurrentSlide(originalSlide);
       setIsExporting(null);
@@ -311,7 +328,7 @@ export default function App() {
   const handleGenerate = async () => {
     if (!input.trim()) return;
     
-    // If no key is provided and no default key exists, show settings
+    // Force settings modal if no API key is provided and no system key exists
     if (!userApiKey && !process.env.GEMINI_API_KEY) {
       setShowSettings(true);
       return;
@@ -507,7 +524,7 @@ export default function App() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 className={cn(
-                  "min-h-[500px] md:aspect-[16/9] w-full rounded-[30px] md:rounded-[40px] shadow-2xl p-6 sm:p-10 md:p-16 lg:p-20 flex flex-col justify-between relative overflow-hidden border-4 md:border-8 border-white print:shadow-none print:border-none print:rounded-none print:w-[297mm] print:h-[210mm] print:m-0",
+                  "min-h-[500px] md:aspect-[16/9] w-full rounded-[30px] md:rounded-[40px] shadow-2xl p-6 sm:p-8 md:p-12 lg:p-16 flex flex-col justify-between relative overflow-hidden border-4 md:border-8 border-white print:shadow-none print:border-none print:rounded-none print:w-[297mm] print:h-[210mm] print:m-0",
                   BG_COLORS[currentSlide % BG_COLORS.length]
                 )}
                 id="active-slide-container"
@@ -522,14 +539,14 @@ export default function App() {
 
                 <div className="relative z-10">
                   {/* Word & Syllables */}
-                  <div className="mb-6 md:mb-8">
+                  <div className="mb-4 md:mb-6">
                     <div className="flex flex-wrap items-center gap-x-4 mb-1 md:mb-2">
                       <div className="flex flex-wrap items-baseline gap-x-0.5 md:gap-x-1">
                         {slides[currentSlide].syllables.map((s, i) => (
                           <span 
                             key={i} 
                             className={cn(
-                              "text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter break-words",
+                              "text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tighter break-words",
                               SYLLABLE_COLORS[s.type]
                             )}
                           >
@@ -542,48 +559,48 @@ export default function App() {
                         onClick={() => playAudio(slides[currentSlide].word, 'word')}
                         disabled={!!playingAudio}
                         className={cn(
-                          "p-3 rounded-full transition-all",
+                          "p-2 md:p-3 rounded-full transition-all",
                           playingAudio === 'word' ? "bg-[#002FA7] text-white animate-pulse" : "bg-white text-[#002FA7] hover:bg-[#002FA7] hover:text-white border-2 border-[#002FA7]"
                         )}
                       >
-                        {playingAudio === 'word' ? <Loader2 className="animate-spin" size={24} /> : <Volume2 size={24} />}
+                        {playingAudio === 'word' ? <Loader2 className="animate-spin" size={20} /> : <Volume2 size={20} />}
                       </button>
                     </div>
-                    <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl text-gray-600 font-medium italic leading-tight">
+                    <p className="text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 font-medium italic leading-tight">
                       {slides[currentSlide].definition}
                     </p>
                   </div>
 
                   {/* Linguistic Info Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-8 mb-8 md:mb-12">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-6 md:mb-8">
                     <div className="space-y-1 md:space-y-2">
                       <h3 className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#E31E24]">Derivatives</h3>
-                      <div className="flex flex-wrap gap-1.5 md:gap-2">
+                      <div className="flex flex-wrap gap-1 md:gap-1.5">
                         {slides[currentSlide].derivatives.map((d, i) => (
-                          <span key={i} className="px-2 py-0.5 md:px-3 md:py-1 rounded-full bg-white/50 border border-gray-200 text-sm md:text-lg font-medium">{d}</span>
+                          <span key={i} className="px-2 py-0.5 rounded-full bg-white/50 border border-gray-200 text-xs md:text-base font-medium">{d}</span>
                         ))}
                       </div>
                     </div>
                     <div className="space-y-1 md:space-y-2">
                       <h3 className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#002FA7]">Collocations</h3>
-                      <div className="flex flex-wrap gap-1.5 md:gap-2">
+                      <div className="flex flex-wrap gap-1 md:gap-1.5">
                         {slides[currentSlide].collocations.map((c, i) => (
-                          <span key={i} className="px-2 py-0.5 md:px-3 md:py-1 rounded-full bg-[#002FA7]/10 text-[#002FA7] text-sm md:text-lg font-bold">{c}</span>
+                          <span key={i} className="px-2 py-0.5 rounded-full bg-[#002FA7]/10 text-[#002FA7] text-xs md:text-base font-bold">{c}</span>
                         ))}
                       </div>
                     </div>
                     <div className="space-y-1 md:space-y-2 sm:col-span-2 md:col-span-1">
                       <h3 className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-[#009E60]">Synonyms / Antonyms</h3>
-                      <div className="flex flex-wrap gap-2 items-center">
-                        <div className="flex flex-wrap gap-1.5 md:gap-2">
+                      <div className="flex flex-wrap gap-1.5 items-center">
+                        <div className="flex flex-wrap gap-1 md:gap-1.5">
                           {slides[currentSlide].synonyms.slice(0, 2).map((s, i) => (
-                            <span key={i} className="text-sm md:text-lg font-medium text-gray-700">{s}</span>
+                            <span key={i} className="text-xs md:text-base font-medium text-gray-700">{s}</span>
                           ))}
                         </div>
-                        <span className="text-gray-300 font-bold px-0.5 md:px-1 text-sm md:text-lg">≠</span>
-                        <div className="flex flex-wrap gap-1.5 md:gap-2">
+                        <span className="text-gray-300 font-bold px-0.5 text-xs md:text-base">≠</span>
+                        <div className="flex flex-wrap gap-1 md:gap-1.5">
                           {slides[currentSlide].antonyms.slice(0, 2).map((a, i) => (
-                            <span key={i} className="text-sm md:text-lg font-medium text-gray-400 bg-gray-100 px-1.5 md:px-2 rounded italic">{a}</span>
+                            <span key={i} className="text-xs md:text-base font-medium text-gray-400 bg-gray-100 px-1 rounded italic">{a}</span>
                           ))}
                         </div>
                       </div>
@@ -592,15 +609,15 @@ export default function App() {
                 </div>
 
                 {/* Example Sentences */}
-                <div className="relative z-10 space-y-4 md:space-y-6">
+                <div className="relative z-10 space-y-3 md:space-y-4">
                   {slides[currentSlide].exampleSentences.map((s, i) => (
                     <div key={i} className="flex gap-3 md:gap-4 items-start group">
                       <div className={cn(
-                        "mt-1.5 md:mt-2 w-2 h-2 md:w-3 md:h-3 rounded-full flex-shrink-0",
+                        "mt-1.5 md:mt-2 w-2 h-2 md:w-2.5 md:h-2.5 rounded-full flex-shrink-0",
                         i === 0 ? "bg-[#E31E24]" : "bg-[#FFD700]"
                       )} />
                       <div className="flex-1">
-                        <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl leading-snug text-gray-800">
+                        <p className="text-sm sm:text-base md:text-lg lg:text-xl leading-snug text-gray-800">
                           {formatSentence(s.text)}
                         </p>
                       </div>
@@ -608,11 +625,11 @@ export default function App() {
                         onClick={() => playAudio(s.text.replace(/\*/g, ''), `sentence-${i}`)}
                         disabled={!!playingAudio}
                         className={cn(
-                          "p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 focus:opacity-100",
+                          "p-1.5 md:p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 focus:opacity-100",
                           playingAudio === `sentence-${i}` ? "bg-[#002FA7] text-white opacity-100" : "bg-white text-[#002FA7] border border-[#002FA7] hover:bg-[#002FA7] hover:text-white"
                         )}
                       >
-                        {playingAudio === `sentence-${i}` ? <Loader2 className="animate-spin" size={18} /> : <Volume2 size={18} />}
+                        {playingAudio === `sentence-${i}` ? <Loader2 className="animate-spin" size={16} /> : <Volume2 size={16} />}
                       </button>
                     </div>
                   ))}
@@ -694,7 +711,12 @@ export default function App() {
 
                 <div className="space-y-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-bold text-gray-500 uppercase tracking-wider">Gemini API Key</label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-bold text-gray-500 uppercase tracking-wider">Gemini API Key</label>
+                      {process.env.GEMINI_API_KEY && !userApiKey && (
+                        <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">System Key Active</span>
+                      )}
+                    </div>
                     <input
                       type="password"
                       value={userApiKey}
