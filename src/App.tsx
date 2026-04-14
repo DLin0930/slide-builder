@@ -31,7 +31,6 @@ import { cn } from './lib/utils';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 
 // Matisse-inspired organic shapes
-// ... (rest of the shapes remain the same)
 const OrganicShape = ({ className, color, delay = 0 }: { className?: string; color: string; delay?: number }) => (
   <motion.svg
     viewBox="0 0 200 200"
@@ -65,15 +64,13 @@ const LeafShape = ({ className, color, delay = 0 }: { className?: string; color:
 );
 
 const SYLLABLE_COLORS = {
-  prefix: "text-[#E31E24]", // Matisse Red
-  root: "text-[#002FA7]",   // Matisse Blue
-  suffix: "text-[#009E60]", // Matisse Green
-  base: "text-gray-900",
-  syllable: "text-gray-900"
+  prefix: "text-[#E31E24]",
+  root: "text-[#002FA7]",
+  suffix: "text-[#009E60]"
 };
 
 const BG_COLORS = [
-  "bg-[#FDFBF7]", // Cream
+  "bg-[#FDFBF7]", // Off-white
   "bg-[#FFF9E6]", // Pale Yellow
   "bg-[#E6F0FF]", // Pale Blue
   "bg-[#FCE8E8]", // Pale Red
@@ -132,14 +129,15 @@ export default function App() {
 
     setPlayingAudio(id);
     try {
-      const base64Audio = await generateSpeech(text, userApiKey);
-      if (base64Audio) {
-        const binaryString = atob(base64Audio);
-        const len = binaryString.length;
-        const bytes = new Int16Array(len / 2);
-        for (let i = 0; i < len; i += 2) {
-          // Assuming 16-bit Little Endian PCM
-          bytes[i / 2] = binaryString.charCodeAt(i) | (binaryString.charCodeAt(i + 1) << 8);
+      const base64Data = await generateSpeech(text, userApiKey);
+      if (base64Data) {
+        // Convert base64 to ArrayBuffer
+        const binaryString = window.atob(base64Data);
+        const bytes = new Int16Array(binaryString.length / 2);
+        const dataView = new DataView(new Uint8Array(Array.from(binaryString, c => c.charCodeAt(0))).buffer);
+        
+        for (let i = 0; i < bytes.length; i++) {
+          bytes[i] = dataView.getInt16(i * 2, true); // Little-endian
         }
 
         const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -147,7 +145,6 @@ export default function App() {
         const channelData = audioBuffer.getChannelData(0);
         
         for (let i = 0; i < bytes.length; i++) {
-          // Convert Int16 to Float32
           channelData[i] = bytes[i] / 32768.0;
         }
 
@@ -178,62 +175,34 @@ export default function App() {
 
     slides.forEach((slide, index) => {
       const pSlide = pres.addSlide();
-      
-      // Matisse-inspired background colors
       const bgColors = ['FDFBF7', 'FFF9E6', 'E6F0FF', 'FCE8E8'];
-      const accentColors = ['002FA7', 'E31E24', '009E60', 'FFD700'];
-      const currentBg = bgColors[index % bgColors.length];
-      const currentAccent = accentColors[index % accentColors.length];
-      
-      pSlide.background = { fill: currentBg };
+      pSlide.background = { fill: bgColors[index % bgColors.length] };
 
-      // Add some organic-looking shapes to mimic Matisse style
-      pSlide.addShape(pres.ShapeType.ellipse, {
-        x: -1, y: -1, w: 4, h: 4,
-        fill: { color: currentAccent, transparency: 90 }
-      });
-      pSlide.addShape(pres.ShapeType.cloud, {
-        x: 8, y: 4, w: 3, h: 3,
-        fill: { color: accentColors[(index + 1) % 4], transparency: 85 }
+      pSlide.addText(slide.word, {
+        x: 0.5, y: 0.5, w: 9, h: 1.5,
+        fontSize: 64, bold: true, color: '002FA7',
+        fontFace: 'Arial Black'
       });
 
-      // Word & Syllables
-      const wordText = slide.syllables.map(s => s.text).join(' · ');
-      pSlide.addText(wordText, {
-        x: 0.5, y: 0.4, w: '90%', h: 1.2,
-        fontSize: 48, bold: true, color: '002FA7',
-        align: 'left', fontFace: 'Arial Black'
-      });
-
-      // Definition
       pSlide.addText(slide.definition, {
-        x: 0.5, y: 1.6, w: '90%', h: 0.6,
-        fontSize: 22, italic: true, color: '555555',
-        align: 'left', fontFace: 'Arial'
+        x: 0.5, y: 2, w: 9, h: 1,
+        fontSize: 24, italic: true, color: '666666'
       });
 
-      // Grid Section
-      const gridY = 2.5;
-      // Derivatives
-      pSlide.addText('DERIVATIVES', { x: 0.5, y: gridY, w: 2.8, h: 0.3, fontSize: 10, bold: true, color: 'E31E24', charSpacing: 2 });
-      pSlide.addText(slide.derivatives.join(', '), { x: 0.5, y: gridY + 0.3, w: 2.8, h: 0.6, fontSize: 14, color: '333333', fontFace: 'Arial' });
+      pSlide.addText(`Derivatives: ${slide.derivatives.join(', ')}`, {
+        x: 0.5, y: 3.2, w: 4, h: 0.5,
+        fontSize: 14, color: 'E31E24', bold: true
+      });
 
-      // Collocations
-      pSlide.addText('COLLOCATIONS', { x: 3.5, y: gridY, w: 2.8, h: 0.3, fontSize: 10, bold: true, color: '002FA7', charSpacing: 2 });
-      pSlide.addText(slide.collocations.join(', '), { x: 3.5, y: gridY + 0.3, w: 2.8, h: 0.6, fontSize: 14, color: '333333', fontFace: 'Arial' });
+      pSlide.addText(`Collocations: ${slide.collocations.join(', ')}`, {
+        x: 5, y: 3.2, w: 4, h: 0.5,
+        fontSize: 14, color: '002FA7', bold: true
+      });
 
-      // Synonyms/Antonyms
-      pSlide.addText('SYNONYMS / ANTONYMS', { x: 6.5, y: gridY, w: 3, h: 0.3, fontSize: 10, bold: true, color: '009E60', charSpacing: 2 });
-      const synAntText = `${slide.synonyms.slice(0, 2).join(', ')} ≠ ${slide.antonyms.slice(0, 2).join(', ')}`;
-      pSlide.addText(synAntText, { x: 6.5, y: gridY + 0.3, w: 3, h: 0.6, fontSize: 14, color: '333333', fontFace: 'Arial' });
-
-      // Example Sentences
-      slide.exampleSentences.forEach((s, i) => {
-        const cleanText = s.text.replace(/\*/g, '');
-        pSlide.addText(`• ${cleanText}`, {
-          x: 0.5, y: 4.0 + (i * 0.7), w: '90%', h: 0.6,
-          fontSize: 20, color: '1A1A1A',
-          align: 'left', fontFace: 'Arial'
+      slide.exampleSentences.slice(0, 2).forEach((s, i) => {
+        pSlide.addText(`• ${s.text.replace(/\*/g, '')}`, {
+          x: 0.5, y: 4.5 + (i * 1), w: 9, h: 0.8,
+          fontSize: 20, color: '333333'
         });
       });
     });
@@ -272,7 +241,7 @@ export default function App() {
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop: (files: File[]) => onDrop(files),
+    onDrop,
     accept: {
       'application/pdf': ['.pdf'],
       'text/plain': ['.txt']
@@ -283,7 +252,6 @@ export default function App() {
   const handleGenerate = async () => {
     if (!input.trim()) return;
     
-    // Force settings modal if no API key is provided and no system key exists
     if (!userApiKey && !process.env.GEMINI_API_KEY) {
       setShowSettings(true);
       return;
@@ -318,13 +286,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#FDFBF7] text-gray-900 font-sans selection:bg-[#FFD700] selection:text-gray-900 overflow-x-hidden">
-      {/* Background Decorations */}
       <OrganicShape color="#002FA7" className="top-[-5%] left-[-5%] w-[400px] h-[400px]" delay={0.2} />
       <LeafShape color="#E31E24" className="bottom-[-10%] right-[-5%] w-[500px] h-[500px]" delay={0.4} />
       <OrganicShape color="#009E60" className="top-[40%] right-[-10%] w-[300px] h-[300px]" delay={0.6} />
       
       <div className="relative z-10 max-w-6xl mx-auto px-6 py-12">
-        {/* Settings Button */}
         <div className="absolute top-6 right-6 z-50">
           <button
             onClick={() => setShowSettings(true)}
@@ -342,7 +308,6 @@ export default function App() {
           </button>
         </div>
 
-        {/* Header */}
         <header className="mb-12 text-center">
           <motion.div
             initial={{ y: -20, opacity: 0 }}
@@ -352,22 +317,10 @@ export default function App() {
             <Sparkles size={14} />
             <span>AI-Powered ESL Architect</span>
           </motion.div>
-          <motion.h1 
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="text-5xl md:text-7xl font-bold tracking-tight text-gray-900 mb-4"
-          >
-            Matisse <span className="text-[#E31E24]">Slides</span>
-          </motion.h1>
-          <motion.p 
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="text-xl text-gray-600 max-w-2xl mx-auto"
-          >
-            Turn your teaching materials into beautiful, linguistic-focused vocabulary decks.
-          </motion.p>
+          <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-gray-900 mb-4">
+            Matisse <span className="text-[#E31E24]">ESL</span>
+          </h1>
+          <p className="text-xl text-gray-500 font-medium">Transform reading materials into artistic vocabulary slides.</p>
         </header>
 
         {viewMode === 'edit' ? (
@@ -376,7 +329,6 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="bg-white rounded-3xl shadow-2xl shadow-gray-200/50 p-8 border border-gray-100 relative overflow-hidden"
           >
-            {/* API Status Indicator */}
             {!isApiActive ? (
               <motion.div 
                 initial={{ opacity: 0, height: 0 }}
@@ -533,24 +485,41 @@ export default function App() {
                   <RefreshCw size={18} />
                   Start New Deck
                 </button>
-                <span className="text-gray-400 font-mono text-sm">
-                  {currentSlide + 1} / {slides.length}
-                </span>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={prevSlide}
-                    disabled={currentSlide === 0}
-                    className="p-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-30 transition-all"
-                  >
-                    <ChevronLeft size={24} />
-                  </button>
-                  <button 
-                    onClick={nextSlide}
-                    disabled={currentSlide === slides.length - 1}
-                    className="p-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-30 transition-all"
-                  >
-                    <ChevronRight size={24} />
-                  </button>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1">
+                    <input 
+                      type="number" 
+                      min="1" 
+                      max={slides.length}
+                      value={currentSlide + 1}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val) && val >= 1 && val <= slides.length) {
+                          setCurrentSlide(val - 1);
+                        }
+                      }}
+                      className="w-12 px-2 py-1 rounded-lg border border-gray-200 text-center font-mono text-sm focus:border-[#002FA7] outline-none"
+                    />
+                    <span className="text-gray-400 font-mono text-sm">
+                      / {slides.length}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={prevSlide}
+                      disabled={currentSlide === 0}
+                      className="p-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-30 transition-all"
+                    >
+                      <ChevronLeft size={24} />
+                    </button>
+                    <button 
+                      onClick={nextSlide}
+                      disabled={currentSlide === slides.length - 1}
+                      className="p-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 disabled:opacity-30 transition-all"
+                    >
+                      <ChevronRight size={24} />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -562,13 +531,12 @@ export default function App() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
                 className={cn(
-                  "min-h-[600px] md:aspect-[16/9] w-full rounded-[30px] md:rounded-[40px] shadow-2xl p-8 sm:p-10 md:p-16 lg:p-20 flex flex-col justify-center relative overflow-hidden border-4 md:border-8 border-white print:shadow-none print:border-none print:rounded-none print:w-[297mm] print:h-[210mm] print:m-0",
+                  "min-h-[600px] md:aspect-[16/9] w-full rounded-[30px] md:rounded-[40px] shadow-2xl p-8 sm:p-10 md:p-12 lg:p-16 flex flex-col justify-center relative overflow-hidden border-4 md:border-8 border-white print:shadow-none print:border-none print:rounded-none print:w-[297mm] print:h-[210mm] print:m-0",
                   BG_COLORS[currentSlide % BG_COLORS.length]
                 )}
                 ref={slideRef}
                 id="active-slide-container"
               >
-                {/* Matisse Cutout Decorations */}
                 <div className="absolute top-5 right-5 md:top-10 md:right-10 opacity-10 md:opacity-20 rotate-12 print:opacity-10">
                   <LeafShape color="#E31E24" className="w-32 h-32 md:w-64 md:h-64" />
                 </div>
@@ -577,7 +545,6 @@ export default function App() {
                 </div>
 
                 <div className="relative z-10">
-                  {/* Word & Syllables */}
                   <div className="mb-6 md:mb-10">
                     <div className="flex flex-wrap items-center gap-x-6 mb-2 md:mb-4">
                       <div className="flex flex-wrap items-baseline gap-x-1 md:gap-x-2">
@@ -585,7 +552,7 @@ export default function App() {
                           <span 
                             key={i} 
                             className={cn(
-                              "text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter break-words",
+                              "text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tighter break-words",
                               SYLLABLE_COLORS[s.type]
                             )}
                           >
@@ -605,41 +572,40 @@ export default function App() {
                         {playingAudio === 'word' ? <Loader2 className="animate-spin" size={28} /> : <Volume2 size={28} />}
                       </button>
                     </div>
-                    <p className="text-xl sm:text-2xl md:text-3xl lg:text-4xl text-gray-600 font-medium italic leading-tight max-w-4xl">
+                    <p className="text-xl sm:text-2xl md:text-2xl lg:text-3xl text-gray-600 font-medium italic leading-tight max-w-4xl">
                       {slides[currentSlide].definition}
                     </p>
                   </div>
 
-                  {/* Linguistic Info Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 md:gap-10 mb-10 md:mb-14">
-                    <div className="space-y-2 md:space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-8 mb-8 md:mb-10">
+                    <div className="space-y-1 md:space-y-2">
                       <h3 className="text-xs md:text-sm font-bold uppercase tracking-widest text-[#E31E24] opacity-70">Derivatives</h3>
                       <div className="flex flex-wrap gap-2 md:gap-3">
                         {slides[currentSlide].derivatives.slice(0, 2).map((d, i) => (
-                          <span key={i} className="px-3 py-1 rounded-full bg-white/60 border border-gray-200 text-sm md:text-xl font-medium shadow-sm">{d}</span>
+                          <span key={i} className="px-3 py-1 rounded-full bg-white/60 border border-gray-200 text-sm md:text-lg font-medium shadow-sm">{d}</span>
                         ))}
                       </div>
                     </div>
-                    <div className="space-y-2 md:space-y-3">
+                    <div className="space-y-1 md:space-y-2">
                       <h3 className="text-xs md:text-sm font-bold uppercase tracking-widest text-[#002FA7] opacity-70">Collocations</h3>
                       <div className="flex flex-wrap gap-2 md:gap-3">
                         {slides[currentSlide].collocations.slice(0, 2).map((c, i) => (
-                          <span key={i} className="px-3 py-1 rounded-full bg-[#002FA7]/10 text-[#002FA7] text-sm md:text-xl font-bold shadow-sm">{c}</span>
+                          <span key={i} className="px-3 py-1 rounded-full bg-[#002FA7]/10 text-[#002FA7] text-sm md:text-lg font-bold shadow-sm">{c}</span>
                         ))}
                       </div>
                     </div>
-                    <div className="space-y-2 md:space-y-3 sm:col-span-2 md:col-span-1">
+                    <div className="space-y-1 md:space-y-2 sm:col-span-2 md:col-span-1">
                       <h3 className="text-xs md:text-sm font-bold uppercase tracking-widest text-[#009E60] opacity-70">Synonyms / Antonyms</h3>
                       <div className="flex flex-wrap gap-3 items-center">
                         <div className="flex flex-wrap gap-2 md:gap-3">
                           {slides[currentSlide].synonyms.slice(0, 2).map((s, i) => (
-                            <span key={i} className="text-sm md:text-xl font-medium text-gray-700">{s}</span>
+                            <span key={i} className="text-sm md:text-lg font-medium text-gray-700">{s}</span>
                           ))}
                         </div>
-                        <span className="text-gray-600 font-bold px-1 text-sm md:text-xl">≠</span>
+                        <span className="text-gray-600 font-bold px-1 text-sm md:text-lg">≠</span>
                         <div className="flex flex-wrap gap-2 md:gap-3">
                           {slides[currentSlide].antonyms.slice(0, 2).map((a, i) => (
-                            <span key={i} className="text-sm md:text-xl font-medium text-gray-400 bg-gray-100/50 px-2 rounded italic">{a}</span>
+                            <span key={i} className="text-sm md:text-lg font-medium text-gray-400 bg-gray-100/50 px-2 rounded italic">{a}</span>
                           ))}
                         </div>
                       </div>
@@ -647,7 +613,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Example Sentences */}
                 <div className="relative z-10 space-y-5 md:space-y-8">
                   {slides[currentSlide].exampleSentences.slice(0, 2).map((s, i) => (
                     <div key={i} className="flex gap-4 md:gap-6 items-start group">
@@ -656,7 +621,7 @@ export default function App() {
                         i === 0 ? "bg-[#E31E24]" : "bg-[#FFD700]"
                       )} />
                       <div className="flex-1">
-                        <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl leading-relaxed text-gray-800 font-medium">
+                        <p className="text-lg sm:text-xl md:text-xl lg:text-2xl leading-relaxed text-gray-800 font-medium">
                           {formatSentence(s.text)}
                         </p>
                       </div>
@@ -676,7 +641,6 @@ export default function App() {
               </motion.div>
             </AnimatePresence>
 
-            {/* Controls Bar */}
             <div className="flex flex-wrap gap-4 justify-center print:hidden">
               <button 
                 onClick={exportToPPTX}
@@ -715,7 +679,6 @@ export default function App() {
         )}
       </div>
 
-      {/* Settings Modal */}
       <AnimatePresence>
         {showSettings && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
@@ -792,7 +755,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Footer */}
       <footer className="mt-20 pb-10 text-center text-gray-400 text-sm">
         <p>© 2026 Matisse ESL Slide Architect • Inspired by Henri Matisse</p>
       </footer>
