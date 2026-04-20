@@ -28,7 +28,7 @@ import { generateVocabularySlides, VocabularySlide, generateSpeech } from './lib
 import { cn } from './lib/utils';
 
 // Initialize PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.6.205/pdf.worker.min.mjs`;
 
 // Matisse-inspired organic shapes
 const OrganicShape = ({ className, color, delay = 0 }: { className?: string; color: string; delay?: number }) => (
@@ -233,7 +233,7 @@ export default function App() {
         setInput(text);
       }
     } catch (error) {
-      console.error('Error parsing file:', error);
+      console.error('Detailed parsing error:', error);
       alert('Failed to parse file. Please try copy-pasting the text.');
     } finally {
       setIsParsing(false);
