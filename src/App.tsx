@@ -100,7 +100,8 @@ export default function App() {
   const [isExporting, setIsExporting] = useState<string | null>(null);
   const slideRef = useRef<HTMLDivElement>(null);
 
-  const isApiActive = !!userApiKey || !!process.env.GEMINI_API_KEY;
+  // Only allow user-provided keys to protect author's quota
+  const isApiActive = !!userApiKey;
 
   // Persist slides and state
   useEffect(() => {
@@ -123,8 +124,8 @@ export default function App() {
   const playAudio = async (text: string, id: string) => {
     if (playingAudio) return;
     
-    // If no key is provided and no default key exists, show settings
-    if (!userApiKey && !process.env.GEMINI_API_KEY) {
+    // If no key is provided, force setup
+    if (!userApiKey) {
       setShowSettings(true);
       return;
     }
@@ -254,7 +255,7 @@ export default function App() {
   const handleGenerate = async () => {
     if (!input.trim()) return;
     
-    if (!userApiKey && !process.env.GEMINI_API_KEY) {
+    if (!userApiKey) {
       setShowSettings(true);
       return;
     }
@@ -265,9 +266,9 @@ export default function App() {
       setSlides(result);
       setCurrentSlide(0);
       setViewMode('present');
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Error generating slides. Please check your API Key.");
+      alert(`Error generating slides: ${error.message || "Unknown error"}. Please check your API Key and ensure it has access to the requested model.`);
     } finally {
       setLoading(false);
     }
@@ -341,9 +342,9 @@ export default function App() {
                   <Key size={20} />
                 </div>
                 <div className="flex-1">
-                  <p className="font-bold mb-1">Getting Started: API Key Required</p>
+                  <p className="font-bold mb-1">Security Update: Personal API Key Required</p>
                   <p className="text-sm opacity-80 leading-relaxed mb-3">
-                    To start architecting your ESL slides, you'll need a Gemini API key. It's free and takes 30 seconds to get.
+                    To protect the author's quota and ensure your privacy, this application now requires you to bring your own Gemini API key. It's free and takes 30 seconds to get.
                   </p>
                   <button 
                     onClick={() => setShowSettings(true)}
@@ -362,12 +363,12 @@ export default function App() {
                     <div className="absolute inset-0 w-3 h-3 rounded-full bg-green-500 animate-ping" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">System Status</span>
-                    <span className="text-sm font-bold">Gemini API Active</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest leading-none mb-1">Status</span>
+                    <span className="text-sm font-bold text-green-700">Personal API Key Active</span>
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <span className="text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-md">READY TO ARCHITECT</span>
+                  <span className="text-[10px] font-bold text-green-600 bg-green-100 px-2 py-0.5 rounded-md self-end">SECURE MODE</span>
                   {userApiKey && (
                     <span className="text-[9px] text-gray-400 font-mono">
                       Key: {userApiKey.substring(0, 4)}...{userApiKey.substring(userApiKey.length - 4)}
@@ -712,7 +713,7 @@ export default function App() {
                     <div className="w-10 h-10 rounded-xl bg-[#002FA7]/10 flex items-center justify-center text-[#002FA7]">
                       <Key size={20} />
                     </div>
-                    <h3 className="text-xl font-bold">API Settings</h3>
+                    <h3 className="text-xl font-bold">Security & API Settings</h3>
                   </div>
                   <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600">
                     <X size={24} />
