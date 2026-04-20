@@ -2,6 +2,8 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useDropzone } from 'react-dropzone';
 import * as pdfjsLib from 'pdfjs-dist';
+// @ts-ignore - Vite asset import
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import pptxgen from "pptxgenjs";
 import { 
   Upload, 
@@ -28,7 +30,7 @@ import { generateVocabularySlides, VocabularySlide, generateSpeech } from './lib
 import { cn } from './lib/utils';
 
 // Initialize PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.6.205/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 // Matisse-inspired organic shapes
 const OrganicShape = ({ className, color, delay = 0 }: { className?: string; color: string; delay?: number }) => (
@@ -426,6 +428,13 @@ export default function App() {
                     <BookOpen size={16} />
                     <span>Supports articles, lists, and raw text</span>
                   </div>
+                  <button
+                    onClick={() => setInput("1. dare [dɛr] vi. 敢 to be bold enough to try or do something \n2. entertain [ˏɛntɚ'ten] vt. 娛樂 to amuse or give pleasure to people \n3. imaginative [ɪ'mædʒəˏnətɪv] adj. 有想像力的 having the ability to think creatively \n4. consistently [kən'sɪstəntlɪ] adv. 持續地 in the same way over a long period of time \n5. convey [kən've] vt. 傳達 to express one's thoughts, emotions, or attitudes \n6. parade [pə'red] n. [C] 遊行 a public march to celebrate special events or days \n7. request [rɪ'kwɛst] n. [C] 要求 vt. 要求 \n8. extreme [ɪk'strim] adj. 極端的 \n9. achieve [ə'tʃiv] vt. 達成 \n10. passion [pæʃən] n. [C, U] 熱愛；熱情 \n11. hardship [hardʃɪp] n. [C, U] 艱難 \n12. poverty [pɑvɚtɪ] n. [U] 貧窮 \n13. rescue [rɛskjʊ] vt. 解救 n. [U] 救援 \n14. career [kərɪr] n. [C] 事業 \n15. weave [wiv] vt. vi. 編織 \n16. deliver [dɪvɚ] vt. 傳達；表達 \n17. disadvantage [dɪsəd væntɪdʒ] n. [C] 劣勢；不利條件 \n18. overcome [ovɚ kʌm] vt. 克服 \n19. attitude [ætə tjud] n. [C] 態度 \n20. challenge [tʃælɪndʒ] n. [C] 挑戰 vt. 質疑 \n21. obstacle [abstəkḷ] n. [C] 障礙 \n22. fulfill [fʊl fɪl] vt. 實現")}
+                    className="ml-auto text-xs font-bold bg-[#FFD700] text-gray-900 px-3 py-1.5 rounded-lg hover:shadow-md transition-all flex items-center gap-2"
+                  >
+                    <Sparkles size={14} />
+                    Load Text from Shared PDF
+                  </button>
                 </div>
                 
                 <button
