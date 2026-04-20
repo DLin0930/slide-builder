@@ -19,7 +19,7 @@ export async function generateVocabularySlides(text: string, userApiKey?: string
   const genAi = new GoogleGenAI({ apiKey });
   
   const response = await genAi.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "gemini-1.5-flash",
     contents: `Extract ALL significant vocabulary words and academic phrases from the following text for ESL learners. Do not skip any important terms. For each word/phrase, provide a detailed linguistic breakdown and teaching materials. 
     
     Text: ${text}
@@ -88,13 +88,13 @@ export async function generateSpeech(text: string, userApiKey?: string): Promise
   const genAi = new GoogleGenAI({ apiKey });
 
   const response = await genAi.models.generateContent({
-    model: "gemini-2.5-flash-preview-tts",
+    model: "gemini-1.5-flash",
     contents: [{ parts: [{ text: `Say clearly and naturally for an ESL student: ${text}` }] }],
     config: {
       responseModalities: [Modality.AUDIO],
       speechConfig: {
         voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: 'Kore' }, // Clear, natural voice
+          prebuiltVoiceConfig: { voiceName: 'Kore' },
         },
       },
     },
