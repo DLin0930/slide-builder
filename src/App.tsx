@@ -1,12 +1,7 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useDropzone } from 'react-dropzone';
-import * as pdfjsLib from 'pdfjs-dist';
-// @ts-ignore - Vite asset import
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import pptxgen from "pptxgenjs";
 import { 
-  Upload, 
   ChevronLeft, 
   ChevronRight, 
   Sparkles, 
@@ -28,9 +23,6 @@ import {
 } from 'lucide-react';
 import { generateVocabularySlides, VocabularySlide, generateSpeech } from './lib/gemini';
 import { cn } from './lib/utils';
-
-// Initialize PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 // Matisse-inspired organic shapes
 const OrganicShape = ({ className, color, delay = 0 }: { className?: string; color: string; delay?: number }) => (
@@ -93,7 +85,6 @@ export default function App() {
     const saved = localStorage.getItem('matisse_view_mode');
     return (saved as 'edit' | 'present') || 'edit';
   });
-  const [isParsing, setIsParsing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [userApiKey, setUserApiKey] = useState(() => localStorage.getItem('gemini_api_key') || '');
   const [playingAudio, setPlayingAudio] = useState<string | null>(null);
@@ -213,44 +204,6 @@ export default function App() {
     await pres.writeFile({ fileName: `ESL_Vocabulary_Deck.pptx` });
     setIsExporting(null);
   };
-
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const file = acceptedFiles[0];
-    if (!file) return;
-
-    setIsParsing(true);
-    try {
-      if (file.type === 'application/pdf') {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let fullText = '';
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          const pageText = textContent.items.map((item: any) => (item as any).str).join(' ');
-          fullText += pageText + '\n';
-        }
-        setInput(fullText);
-      } else {
-        const text = await file.text();
-        setInput(text);
-      }
-    } catch (error) {
-      console.error('Detailed parsing error:', error);
-      alert('Failed to parse file. Please try copy-pasting the text.');
-    } finally {
-      setIsParsing(false);
-    }
-  }, []);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'application/pdf': ['.pdf'],
-      'text/plain': ['.txt']
-    },
-    multiple: false
-  } as any);
 
   const handleGenerate = async () => {
     if (!input.trim()) return;
@@ -384,7 +337,7 @@ export default function App() {
                   <div className="w-10 h-10 rounded-xl bg-[#FFD700] flex items-center justify-center">
                     <FileText className="text-gray-900" size={20} />
                   </div>
-                  <h2 className="text-2xl font-bold">Input Material</h2>
+                  <h2 className="text-2xl font-bold">請貼入文字內容 (目前僅支援純文字)</h2>
                   {slides.length > 0 && (
                     <button 
                       onClick={() => setViewMode('present')}
@@ -394,25 +347,12 @@ export default function App() {
                     </button>
                   )}
                 </div>
-                
-                <div {...getRootProps()} className={cn(
-                  "px-4 py-2 rounded-xl border-2 border-dashed transition-all cursor-pointer flex items-center gap-2 text-sm font-medium",
-                  isDragActive ? "border-[#002FA7] bg-[#002FA7]/5 text-[#002FA7]" : "border-gray-200 text-gray-500 hover:border-gray-300"
-                )}>
-                  <input {...getInputProps()} />
-                  {isParsing ? (
-                    <RefreshCw className="animate-spin" size={16} />
-                  ) : (
-                    <Upload size={16} />
-                  )}
-                  <span>{isParsing ? "Parsing PDF..." : "Upload PDF or TXT"}</span>
-                </div>
               </div>
               
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Paste your reading material, vocabulary list, or notes here..."
+                placeholder="請在此貼上您的閱讀教材、單字表或筆記... (提醒：Vercel 版本目前僅支援在此貼上純文字內容，請勿直接上傳 PDF 檔案，以免讀取失敗)"
                 className="w-full h-64 p-6 rounded-2xl bg-gray-50 border-2 border-transparent focus:border-[#002FA7] focus:bg-white transition-all outline-none text-lg resize-none"
               />
 
@@ -422,20 +362,13 @@ export default function App() {
                     onClick={() => setInput("The photosynthesis process is essential for plant growth. Chlorophyll absorbs sunlight to convert carbon dioxide and water into glucose. This biological phenomenon sustains life on Earth.")}
                     className="text-xs font-bold text-[#002FA7] hover:underline"
                   >
-                    Load Sample Text
+                    載入範例文字
                   </button>
                   <span className="text-gray-300">|</span>
                   <div className="flex items-center gap-2 text-gray-500 text-sm">
                     <BookOpen size={16} />
-                    <span>Supports articles, lists, and raw text</span>
+                    <span>支援文章、單字清單與純文字內容</span>
                   </div>
-                  <button
-                    onClick={() => setInput("1. dare [dɛr] vi. 敢 to be bold enough to try or do something \n2. entertain [ˏɛntɚ'ten] vt. 娛樂 to amuse or give pleasure to people \n3. imaginative [ɪ'mædʒəˏnətɪv] adj. 有想像力的 having the ability to think creatively \n4. consistently [kən'sɪstəntlɪ] adv. 持續地 in the same way over a long period of time \n5. convey [kən've] vt. 傳達 to express one's thoughts, emotions, or attitudes \n6. parade [pə'red] n. [C] 遊行 a public march to celebrate special events or days \n7. request [rɪ'kwɛst] n. [C] 要求 vt. 要求 \n8. extreme [ɪk'strim] adj. 極端的 \n9. achieve [ə'tʃiv] vt. 達成 \n10. passion [pæʃən] n. [C, U] 熱愛；熱情 \n11. hardship [hardʃɪp] n. [C, U] 艱難 \n12. poverty [pɑvɚtɪ] n. [U] 貧窮 \n13. rescue [rɛskjʊ] vt. 解救 n. [U] 救援 \n14. career [kərɪr] n. [C] 事業 \n15. weave [wiv] vt. vi. 編織 \n16. deliver [dɪvɚ] vt. 傳達；表達 \n17. disadvantage [dɪsəd væntɪdʒ] n. [C] 劣勢；不利條件 \n18. overcome [ovɚ kʌm] vt. 克服 \n19. attitude [ætə tjud] n. [C] 態度 \n20. challenge [tʃælɪndʒ] n. [C] 挑戰 vt. 質疑 \n21. obstacle [abstəkḷ] n. [C] 障礙 \n22. fulfill [fʊl fɪl] vt. 實現")}
-                    className="ml-auto text-xs font-bold bg-[#FFD700] text-gray-900 px-3 py-1.5 rounded-lg hover:shadow-md transition-all flex items-center gap-2"
-                  >
-                    <Sparkles size={14} />
-                    Load Text from Shared PDF
-                  </button>
                 </div>
                 
                 <button
@@ -451,12 +384,12 @@ export default function App() {
                   {loading ? (
                     <>
                       <RefreshCw className="animate-spin" size={20} />
-                      Analyzing Material...
+                      正在分析教材內容...
                     </>
                   ) : (
                     <>
                       <Sparkles size={20} />
-                      Generate Slide Deck
+                      生成單字簡報
                     </>
                   )}
                 </button>
